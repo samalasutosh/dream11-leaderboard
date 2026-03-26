@@ -1,0 +1,159 @@
+// ==========================================
+// 1. LEADERBOARD ENGINE & CALCULATION
+// ==========================================
+function updateLeaderboard() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var matchSheet = ss.getSheetByName("Match Results");
+  var leaderboardSheet = ss.getSheetByName("Leaderboard");
+  var playersSheet = ss.getSheetByName("Players");
+
+  if (!matchSheet || !leaderboardSheet || !playersSheet) {
+    Logger.log("Error: Required sheets not found!");
+    return [];
+  }
+
+  var players = playersSheet.getDataRange().getValues().flat().filter(String);
+  var data = matchSheet.getDataRange().getValues();
+  var matches = data.slice(1).filter(row => row[2]); 
+
+  var winCounts = {};
+  var playerLogs = {}; 
+  var rankHistory = {}; 
+  
+  // NEW: Absence & Fine Tracking Variables
+  var missStreaks = {};
+  var totalFines = {};
+  
+  players.forEach(p => { 
+    winCounts[p] = 0; 
+    playerLogs[p] = []; 
+    rankHistory[p] = [];
+    missStreaks[p] = 0;
+    totalFines[p] = 0;
+  });
+
+  function getRanksAtCurrentState(currentWins) {
+    var lb = Object.entries(currentWins).map(([player, wins]) => ({ player, wins })).sort((a, b) => b.wins - a.wins);
+    var ranks = {};
+    var currentRank = 1, prevWins = null;
+    lb.forEach((entry, index) => {
+      if (prevWins !== null && entry.wins < prevWins) { currentRank = index + 1; }
+      ranks[entry.player] = currentRank;
+      prevWins = entry.wins;
+    });
+    return ranks;
+  }
+
+  // Iterate chronologically through matches
+  matches.forEach((match, index) => {
+    var dateStr = match[0] instanceof Date ? (match[0].getMonth()+1) + "/" + match[0].getDate() : match[0];
+    var matchName = match[1];
+    var winner = match[2];
+    var absenteesStr = match[3] ? match[3].toString() : ""; 
+    var absenteesList = absenteesStr.split(",").map(s => s.trim());
+    
+    // 1. Process Winner
+    if (winCounts.hasOwnProperty(winner)) {
+      winCounts[winner]++;
+      playerLogs[winner].unshift(matchName + " (" + dateStr + ")");
+    }
+    
+    // 2. Process Absences & Fines
+    players.forEach(p => {
+      if (absenteesList.includes(p)) {
+        missStreaks[p]++;
+        // Trigger Fine if they hit 3 consecutive misses
+        if (missStreaks[p] >= 3) {
+          totalFines[p]++;
+          missStreaks[p] = 0; // Reset streak after fine is issued
+        }
+      } else {
+        // If they played, reset their miss streak
+        missStreaks[p] = 0;
+      }
+    });
+    
+    // 3. Store History
+    var ranksAfterMatch = getRanksAtCurrentState(winCounts);
+    players.forEach(p => { rankHistory[p].push(ranksAfterMatch[p]); });
+  });
+
+  var finalRanks = getRanksAtCurrentState(winCounts);
+  var last3Matches = matches.slice(-3).map(m => m[2]);
+
+  var leaderboardData = players.map(curr => {
+    var rHistory = rankHistory[curr] || [];
+    var finalRank = finalRanks[curr];
+    var prevRank = rHistory.length > 1 ? rHistory[rHistory.length - 2] : finalRank;
+    var trend = prevRank - finalRank; 
+    var form = last3Matches.map(winner => winner === curr ? 'W' : 'L');
+
+    return {
+      player: curr,
+      wins: winCounts[curr],
+      rank: finalRank,
+      trend: trend,
+      form: form,
+      log: playerLogs[curr].slice(0, 5),
+      rankHistory: rHistory,
+      missStreak: missStreaks[curr], // Pass streak to UI
+      fines: totalFines[curr]        // Pass fines to UI
+    };
+  }).sort((a, b) => a.rank - b.rank); 
+
+  leaderboardSheet.clear();
+  leaderboardSheet.appendRow(["Player Name", "Wins", "Rank"]);
+  leaderboardData.forEach(({ player, wins, rank }) => {
+    leaderboardSheet.appendRow([player, wins, rank]);
+  });
+
+  CacheService.getScriptCache().put("leaderboard", JSON.stringify(leaderboardData), 600);
+  return leaderboardData; 
+}
+
+// ==========================================
+// 2. DATA FETCHING & ROUTING
+// ==========================================
+function getLeaderboardData() {
+  var cachedData = CacheService.getScriptCache().get("leaderboard");
+  return cachedData ? JSON.parse(cachedData) : updateLeaderboard(); 
+}
+
+function doGet() {
+  var leaderboardData = getLeaderboardData(); 
+  var template = HtmlService.createTemplateFromFile("index"); 
+  template.leaderboardData = JSON.stringify(leaderboardData); 
+  
+  var htmlOutput = template.evaluate();
+  htmlOutput.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  htmlOutput.addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  return htmlOutput;
+}
+
+// ==========================================
+// 3. ADMIN PORTAL: ADD & UNDO MATCHES
+// ==========================================
+var ADMIN_PIN = "13579";
+
+// Updated to accept the 5th parameter: absentees
+function addMatchRecord(dateStr, matchName, winner, pinCode, absentees) {
+  if (pinCode !== ADMIN_PIN) return { success: false, message: "Incorrect Admin PIN." };
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    // Append the new column data (Column D)
+    ss.getSheetByName("Match Results").appendRow([dateStr, matchName, winner, absentees]);
+    return { success: true, message: "Match logged!", data: updateLeaderboard() };
+  } catch (error) { return { success: false, message: "Error: " + error.toString() }; }
+}
+
+function undoLastMatch(pinCode) {
+  if (pinCode !== ADMIN_PIN) return { success: false, message: "Incorrect Admin PIN." };
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var matchSheet = ss.getSheetByName("Match Results");
+    var lastRow = matchSheet.getLastRow();
+    if (lastRow <= 1) return { success: false, message: "No matches left to delete." };
+    matchSheet.deleteRow(lastRow);
+    return { success: true, message: "Last match reverted!", data: updateLeaderboard() };
+  } catch (error) { return { success: false, message: "Error: " + error.toString() }; }
+}

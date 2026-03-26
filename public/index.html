@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Leaderboard IPL 2026</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        :root {
+            --bg-body: #07070D; --bg-gradient: radial-gradient(circle at 50% 0%, #1a103c 0%, #07070D 70%);
+            --bg-wrap: rgba(10, 10, 15, 0.85); --bg-row: rgba(28, 28, 39, 0.6); --bg-row-hover: rgba(38, 38, 50, 0.9);
+            --bg-modal: #15151E; --bg-input: #0A0A0F; --text-main: #F0F0F8; --text-sub: #8E8E9F;
+            --border-color: rgba(255,255,255,0.05); --grid-color: #2A2A3A;
+            --shadow-wrap: 0 20px 40px rgba(0,0,0,0.5); --gold-glow: rgba(255, 215, 0, 0.15);
+        }
+
+        body.light-mode {
+            --bg-body: #f1f5f9; --bg-gradient: radial-gradient(circle at 50% 0%, #ffffff 0%, #e2e8f0 100%);
+            --bg-wrap: #ffffff; --bg-row: #ffffff; --bg-row-hover: #f8fafc;
+            --bg-modal: #ffffff; --bg-input: #f8fafc; --text-main: #0f172a; --text-sub: #475569;
+            --border-color: #cbd5e1; --grid-color: #e2e8f0;
+            --shadow-wrap: 0 25px 50px -12px rgba(15, 23, 42, 0.15); --gold-glow: rgba(217, 119, 6, 0.1); 
+        }
+
+        body { background: var(--bg-body); background-image: var(--bg-gradient); display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; padding: 1rem; color: var(--text-main); overflow-y: auto; transition: background 0.3s ease, color 0.3s ease; }
+        
+        .theme-toggle { position: absolute; top: 1.5rem; right: 2rem; cursor: pointer; font-size: 1.2rem; background: var(--bg-row); border: 1px solid var(--border-color); padding: 0.5rem; border-radius: 50%; transition: all 0.2s; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .theme-toggle:hover { transform: scale(1.1); }
+
+        .lb-wrap { background: var(--bg-wrap); backdrop-filter: blur(10px); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.5rem 2rem; font-family: 'DM Sans', sans-serif; width: 100%; max-width: 680px; box-shadow: var(--shadow-wrap); position: relative; transition: all 0.3s ease; }
+        .lb-title { font-family: 'Bebas Neue', sans-serif; font-size: 2.6rem; letter-spacing: 0.08em; text-align: center; background: linear-gradient(180deg, #FFD700 0%, #F5A623 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; margin-bottom: 0.2rem; text-shadow: 0 4px 15px rgba(255, 215, 0, 0.2); }
+        
+        body.light-mode .lb-title { background: linear-gradient(180deg, #d97706 0%, #b45309 100%); -webkit-background-clip: text; text-shadow: none; }
+        body.light-mode .lb-row { box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        body.light-mode .lb-row.gold-row { border-left: 4px solid #d97706; background: linear-gradient(90deg, var(--gold-glow) 0%, var(--bg-row) 100%); }
+        body.light-mode .gold-row .wins-count { color: #b45309; font-weight: 600; }
+        body.light-mode .gold-row .rank-badge { background: #d97706; color: #fff; }
+
+        .lb-sub { text-align: center; font-size: 0.8rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--text-sub); margin-bottom: 1.2rem; }
+        .lb-header { display: grid; grid-template-columns: 60px 1fr 90px 60px; padding: 0 1rem 0.5rem; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-sub); border-bottom: 1px solid var(--border-color); margin-bottom: 0.4rem; font-weight: 600;}
+        .lb-header span:nth-child(3) { text-align: center; } .lb-header span:last-child { text-align: right; }
+        
+        .lb-row { display: grid; grid-template-columns: 60px 1fr 90px 60px; align-items: center; padding: 0.6rem 1rem; border-radius: 8px; margin-bottom: 0.3rem; background: var(--bg-row); border: 1px solid var(--border-color); transition: all 0.2s ease; animation: fadeUp 0.4s ease both; cursor: pointer; }
+        .lb-row:hover { transform: translateX(4px) scale(1.01); background: var(--bg-row-hover); border-color: var(--gold-glow); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .lb-row.gold-row { background: linear-gradient(90deg, var(--gold-glow) 0%, var(--bg-row) 100%); border-left: 3px solid #FFD700; }
+        
+        .rank-wrapper { display: flex; align-items: center; gap: 8px; }
+        .rank-badge { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-family: 'Bebas Neue', sans-serif; font-size: 1rem; background: var(--grid-color); color: var(--text-sub); }
+        .gold-row .rank-badge { background: #FFD700; color: #000; } .silver-row .rank-badge { background: #C0C0C0; color: #000; } .bronze-row .rank-badge { background: #CD7F32; color: #fff; }
+        
+        .trend { font-size: 0.7rem; font-weight: bold; width: 12px;} .trend.up { color: #10b981; } .trend.down { color: #ef4444; } .trend.flat { color: var(--text-sub); }
+        .player-name { font-size: 0.95rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-main); display: flex; align-items: center; }
+        
+        .form-tracker { display: flex; gap: 4px; justify-content: center; } .form-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--grid-color); }
+        .form-dot.W { background: #10b981; } .form-dot.L { background: #ef4444; opacity: 0.6; }
+        .wins-count { text-align: right; font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; color: var(--text-main); } .gold-row .wins-count { color: #d4af37; }
+        
+        .refresh-btn { display: block; margin: 1.2rem auto 0; padding: 0.6rem 2rem; background: var(--bg-row); border: 1px solid var(--border-color); border-radius: 24px; color: var(--text-sub); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .refresh-btn:hover { color: var(--text-main); border-color: var(--text-sub); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        
+        .admin-trigger { margin-top: 1.5rem; padding: 0.5rem 1rem; background: transparent; border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-sub); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.3s ease; display: flex; align-items: center; gap: 6px; }
+        .admin-trigger:hover { background: var(--bg-row-hover); color: var(--text-main); border-color: var(--text-sub); }
+        
+        /* Modals */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-card { background: var(--bg-modal); border: 1px solid var(--border-color); border-radius: 16px; padding: 2rem; width: 90%; max-width: 450px; font-family: 'DM Sans', sans-serif; box-shadow: var(--shadow-wrap); transform: scale(0.95); opacity: 0; animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes modalPop { to { transform: scale(1); opacity: 1; } }
+        .modal-card h3 { color: var(--text-main); margin-bottom: 1.5rem; text-align: center; font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; font-size: 2.2rem; } 
+        body:not(.light-mode) #adminModal h3 { color: #FFD700; }
+        body.light-mode #adminModal h3 { color: #b45309; }
+        
+        .input-group { margin-bottom: 1.2rem; } .input-group label { display: block; font-size: 0.75rem; color: var(--text-sub); margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;}
+        .admin-input { width: 100%; padding: 0.8rem 1rem; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-main); font-family: inherit; font-size: 0.9rem; transition: all 0.2s ease; }
+        .admin-input:focus { outline: none; border-color: #d97706; box-shadow: 0 0 0 3px var(--gold-glow); }
+        
+        /* Absentees UI */
+        .absentee-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0.5rem; }
+        .absentee-pill { padding: 0.4rem 0.8rem; background: var(--bg-row); border: 1px solid var(--border-color); border-radius: 20px; font-size: 0.75rem; color: var(--text-sub); cursor: pointer; transition: all 0.2s ease; user-select: none; }
+        .absentee-pill.active { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: #ef4444; font-weight: bold;}
+
+        .admin-btn-group { display: flex; gap: 8px; margin-top: 1.5rem; }
+        .admin-btn { flex: 1; padding: 0.9rem; border-radius: 8px; cursor: pointer; border: none; font-weight: 600; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em; transition: all 0.2s ease; }
+        .btn-cancel { background: var(--grid-color); color: var(--text-main); } .btn-cancel:hover { filter: brightness(0.95); }
+        .btn-submit { background: #10b981; color: #fff; } .btn-submit:hover { background: #059669; }
+        .btn-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); } .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
+        .status-msg { margin-top: 1.2rem; text-align: center; font-size: 0.85rem; display: none; font-weight: 500;}
+        
+        /* Player Stats Specifics */
+        .stat-box { display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); padding: 1rem; border-radius: 8px; margin-bottom: 0.8rem; border: 1px solid var(--border-color);}
+        .stat-label { color: var(--text-sub); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.1em; font-weight: 600;}
+        .stat-value { color: #10b981; font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 1px; }
+        .chart-container { position: relative; height: 180px; width: 100%; margin-bottom: 1.5rem; }
+        .match-log { list-style: none; margin-bottom: 1.5rem; max-height: 120px; overflow-y: auto;} 
+        .match-log li { padding: 0.6rem 0; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; color: var(--text-main); display: flex; align-items: center; gap: 10px; }
+        .match-log li::before { content: "🏆"; font-size: 1rem; } .match-log li:last-child { border-bottom: none; }
+        
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @media (max-width: 600px) {
+            body { padding: 0.5rem; align-items: flex-start; } .lb-wrap { padding: 1rem 0.8rem; max-width: 98%; }
+            .theme-toggle { top: 1rem; right: 1rem; }
+            .lb-title { font-size: 2.2rem; } .lb-sub { font-size: 0.75rem; margin-bottom: 0.8rem; }
+            .lb-header, .lb-row { grid-template-columns: 45px 1fr 60px 40px; padding: 0.5rem 0.4rem; margin-bottom: 0.2rem;}
+            .rank-wrapper { gap: 4px; } .rank-badge { width: 22px; height: 22px; font-size: 0.9rem; } .trend { width: 10px; font-size: 0.65rem; }
+            .player-name { font-size: 0.95rem; } .form-dot { width: 6px; height: 6px; } .wins-count { font-size: 1.2rem; } 
+            .modal-card { padding: 1.5rem 1.2rem; height: 95vh; overflow-y: auto;} .admin-btn { font-size: 0.75rem; padding: 0.8rem 0.4rem;}
+            .chart-container { height: 150px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="lb-wrap">
+        <div class="theme-toggle" onclick="toggleTheme()" id="themeIcon">☀️</div>
+        <div class="lb-title">IPL 2026</div>
+        <div class="lb-sub">Season Leaderboard</div>
+        <div class="lb-header"><span>Rank</span><span>Player</span><span>Form</span><span>Wins</span></div>
+        <div id="lb-body"><div style="text-align:center; padding: 2rem; color: var(--text-sub);">Loading standings...</div></div>
+        <button class="refresh-btn" onclick="fetchLeaderboard()">Refresh Data</button>
+    </div>
+    
+    <button class="admin-trigger" onclick="toggleAdmin(true)">⚙️ Admin Portal</button>
+
+    <div class="modal-overlay" id="adminModal">
+        <div class="modal-card">
+            <h3>Log Match Result</h3>
+            <div class="input-group"><label>Date</label><input type="date" id="matchDate" class="admin-input"></div>
+            <div class="input-group"><label>Match (e.g., CSK vs MI)</label><input type="text" id="matchName" class="admin-input" placeholder="Enter match teams"></div>
+            <div class="input-group"><label>Winner</label><select id="matchWinner" class="admin-input"></select></div>
+            
+            <div class="input-group">
+                <label>Absentees (Missed Match)</label>
+                <div id="absenteeGrid" class="absentee-grid"></div>
+            </div>
+
+            <div class="input-group"><label>Admin PIN</label><input type="password" id="adminPin" class="admin-input" placeholder="Enter Admin PIN"></div>
+            <div id="statusMsg" class="status-msg"></div>
+            <div class="admin-btn-group">
+                <button class="admin-btn btn-danger" onclick="undoMatch()">Revert Last</button>
+                <button class="admin-btn btn-cancel" onclick="toggleAdmin(false)">Close</button>
+                <button class="admin-btn btn-submit" id="submitBtn" onclick="submitMatch()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="playerModal">
+        <div class="modal-card">
+            <h3 id="pModalName">Player Name</h3>
+            
+            <div class="stat-box"><span class="stat-label">Total Season Wins</span><span class="stat-value" id="pModalWins">0</span></div>
+            
+            <div class="stat-box">
+                <div>
+                    <span class="stat-label">Consecutive Misses</span>
+                    <div style="font-size:0.75rem; color:var(--text-sub); margin-top:2px;">At 3, a fine is issued</div>
+                </div>
+                <span class="stat-value" id="pModalMisses" style="color:#f59e0b;">0/3</span>
+            </div>
+            <div class="stat-box"><span class="stat-label">Total Fines Issued</span><span class="stat-value" id="pModalFines" style="color:#ef4444;">0</span></div>
+            
+            <div style="color: var(--text-sub); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.1em; font-weight: 600; margin-top: 1rem;">Rank Progression</div>
+            <div class="chart-container"><canvas id="rankChart"></canvas></div>
+
+            <div style="color: var(--text-sub); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.1em; font-weight: 600;">Recent Conquests</div>
+            <ul class="match-log" id="pModalLog"></ul>
+            <div class="admin-btn-group"><button class="admin-btn btn-cancel" style="flex: 1;" onclick="togglePlayer(false)">Close Profile</button></div>
+        </div>
+    </div>
+
+    <script>
+        // --- THEME MANAGEMENT ---
+        function toggleTheme() {
+            const body = document.body;
+            body.classList.toggle('light-mode');
+            const isLight = body.classList.contains('light-mode');
+            localStorage.setItem('iplTheme', isLight ? 'light' : 'dark');
+            document.getElementById('themeIcon').innerText = isLight ? '🌙' : '☀️';
+            if(document.getElementById('playerModal').style.display === 'flex') {
+                const activePlayerIndex = document.getElementById('playerModal').getAttribute('data-active-index');
+                if(activePlayerIndex !== null) openPlayerProfile(activePlayerIndex);
+            }
+        }
+        if (localStorage.getItem('iplTheme') === 'light') {
+            document.body.classList.add('light-mode'); document.getElementById('themeIcon').innerText = '🌙';
+        }
+
+        let currentLeaderboardData = [];
+        let rankChartInstance = null;
+
+        function rowClass(r) { return r===1 ? 'gold-row' : ''; }
+        function getTrend(trendValue) {
+            if (trendValue > 0) return '<span class="trend up">▲</span>';
+            if (trendValue < 0) return '<span class="trend down">▼</span>';
+            return '<span class="trend flat">▬</span>';
+        }
+        function getForm(formArray) {
+            if (!formArray) return '';
+            return formArray.map(result => `<div class="form-dot ${result}"></div>`).join('');
+        }
+
+        function render(data) {
+            currentLeaderboardData = data;
+            const body = document.getElementById('lb-body');
+            if (!data || !data.length) return;
+            
+            body.innerHTML = data.map((e, i) => {
+                let warningIcon = '';
+                if (e.fines > 0) warningIcon = `<span style="font-size:0.8rem; margin-left:6px;" title="${e.fines} Pending Fine(s)">🚨</span>`;
+                else if (e.missStreak === 2) warningIcon = `<span style="font-size:0.8rem; margin-left:6px;" title="At risk of fine">⚠️</span>`;
+
+                return `
+                <div class="lb-row ${rowClass(e.rank)}" style="animation-delay:${i * 0.04}s" onclick="openPlayerProfile(${i})">
+                    <div class="rank-wrapper">${getTrend(e.trend)}<div class="rank-badge">${e.rank}</div></div>
+                    <div class="player-name">${e.player} ${warningIcon}</div>
+                    <div class="form-tracker">${getForm(e.form)}</div>
+                    <div class="wins-count">${e.wins}</div>
+                </div>`;
+            }).join('');
+            
+            // Populate Dropdown & Absentee Grid
+            const select = document.getElementById('matchWinner');
+            const absenteeGrid = document.getElementById('absenteeGrid');
+            select.innerHTML = '<option value="">-- Select Winner --</option>';
+            absenteeGrid.innerHTML = '';
+            
+            data.forEach(e => { 
+                select.innerHTML += `<option value="${e.player}">${e.player}</option>`; 
+                absenteeGrid.innerHTML += `<div class="absentee-pill" onclick="this.classList.toggle('active')" data-player="${e.player}">${e.player}</div>`;
+            });
+        }
+
+        // --- INITIAL LOAD via fetch ---
+        fetchLeaderboard();
+        document.getElementById('matchDate').valueAsDate = new Date();
+
+        function fetchLeaderboard() {
+            const body = document.getElementById('lb-body');
+            body.style.opacity = '0.5';
+            fetch('/api/leaderboard')
+                .then(res => res.json())
+                .then(data => { body.style.opacity = '1'; render(data); })
+                .catch(err => { body.style.opacity = '1'; console.error('Failed to refresh:', err); });
+        }
+
+        function openPlayerProfile(index) {
+            const player = currentLeaderboardData[index];
+            if(!player) return;
+            document.getElementById('playerModal').setAttribute('data-active-index', index);
+            togglePlayer(true);
+            
+            document.getElementById('pModalName').innerText = player.player;
+            document.getElementById('pModalWins').innerText = player.wins;
+            document.getElementById('pModalMisses').innerText = (player.missStreak || 0) + "/3";
+            document.getElementById('pModalFines').innerText = player.fines || 0;
+            
+            const logHTML = player.log && player.log.length > 0 
+                ? player.log.map(match => `<li>${match}</li>`).join('') 
+                : `<li style="justify-content:center; color:var(--text-sub);">No wins recorded yet.</li>`;
+            document.getElementById('pModalLog').innerHTML = logHTML;
+            
+            try {
+                const ctx = document.getElementById('rankChart').getContext('2d');
+                if(rankChartInstance) rankChartInstance.destroy();
+                const isLight = document.body.classList.contains('light-mode');
+                const gridColor = isLight ? '#e2e8f0' : '#2A2A3A';
+                const textColor = isLight ? '#64748b' : '#8E8E9F';
+                const historyData = player.rankHistory || [];
+                const labels = historyData.length > 0 ? historyData.map((_, i) => `M${i+1}`) : ['Pre-Season'];
+                const chartData = historyData.length > 0 ? historyData : [player.rank || 1];
+                
+                rankChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: labels, datasets: [{ label: 'Season Rank', data: chartData, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 2, tension: 0.3, fill: true, pointRadius: 3, pointBackgroundColor: '#10b981' }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { reverse: true, min: 1, ticks: { stepSize: 1, color: textColor, precision: 0 }, grid: { color: gridColor } }, x: { ticks: { color: textColor }, grid: { color: gridColor } } }, plugins: { legend: { display: false } } }
+                });
+            } catch (err) { console.error("Chart error:", err); }
+        }
+
+        function togglePlayer(show) {
+            document.getElementById('playerModal').style.display = show ? 'flex' : 'none';
+            if(show) triggerAnimation('#playerModal .modal-card');
+        }
+
+        function toggleAdmin(show) {
+            document.getElementById('adminModal').style.display = show ? 'flex' : 'none';
+            document.getElementById('statusMsg').style.display = 'none'; 
+            if(show) triggerAnimation('#adminModal .modal-card');
+            document.querySelectorAll('.absentee-pill').forEach(pill => pill.classList.remove('active'));
+        }
+
+        function triggerAnimation(selector) {
+            const el = document.querySelector(selector); el.style.animation = 'none'; el.offsetHeight; el.style.animation = 'modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
+        }
+
+        function submitMatch() {
+            const date = document.getElementById('matchDate').value;
+            const match = document.getElementById('matchName').value;
+            const winner = document.getElementById('matchWinner').value;
+            const pin = document.getElementById('adminPin').value;
+            
+            const activePills = document.querySelectorAll('.absentee-pill.active');
+            const absentees = Array.from(activePills).map(p => p.getAttribute('data-player')).join(', ');
+
+            const status = document.getElementById('statusMsg');
+            const btn = document.getElementById('submitBtn');
+
+            if (!date || !match || !winner || !pin) { showStatus(status, "Please fill out Date, Match, Winner and PIN.", '#ef4444'); return; }
+            btn.innerText = "Saving..."; btn.disabled = true;
+
+            fetch('/api/match', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, matchName: match, winner, pin, absentees })
+            })
+            .then(res => res.json())
+            .then(res => {
+                btn.innerText = "Save"; btn.disabled = false;
+                if (res.success) {
+                    showStatus(status, res.message, '#10b981'); render(res.data);
+                    setTimeout(() => { toggleAdmin(false); }, 1500);
+                    document.getElementById('matchName').value = ''; document.getElementById('adminPin').value = '';
+                } else showStatus(status, res.message, '#ef4444');
+            })
+            .catch(err => {
+                btn.innerText = "Save"; btn.disabled = false; showStatus(status, "Connection error.", '#ef4444');
+            });
+        }
+
+        function undoMatch() {
+            const pin = document.getElementById('adminPin').value;
+            const status = document.getElementById('statusMsg');
+            if (!pin) { showStatus(status, "Enter PIN to Revert.", '#ef4444'); return; }
+            if (!confirm("Are you sure you want to delete the absolute last match logged?")) return;
+
+            fetch('/api/undo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    showStatus(status, res.message, '#d97706'); render(res.data);
+                    setTimeout(() => { toggleAdmin(false); }, 1500);
+                    document.getElementById('adminPin').value = '';
+                } else showStatus(status, res.message, '#ef4444');
+            })
+            .catch(err => { showStatus(status, "Connection error.", '#ef4444'); });
+        }
+
+        function showStatus(element, text, color) { element.style.display = 'block'; element.style.color = color; element.innerText = text; }
+    </script>
+</body>
+</html>
