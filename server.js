@@ -11,28 +11,46 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const DATA_DIR = path.join(__dirname, 'data');
 const PLAYERS_FILE = path.join(DATA_DIR, 'players.json');
-const MATCHES_FILE = path.join(DATA_DIR, 'matches.json');
 const ADMIN_PIN = process.env.ADMIN_PIN || '13579';
 
+const JSONBIN_BIN_ID  = process.env.JSONBIN_BIN_ID;
+const JSONBIN_API_KEY = process.env.JSONBIN_API_KEY;
+const JSONBIN_URL     = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
+
 // ==========================================
-// HELPERS — read/write JSON
+// HELPERS — players from local file, matches from JSONBin
 // ==========================================
-function readJSON(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+function readPlayers() {
+  return JSON.parse(fs.readFileSync(PLAYERS_FILE, 'utf-8'));
 }
 
-function writeJSON(filePath, data) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+async function readMatches() {
+  const res = await fetch(`${JSONBIN_URL}/latest`, {
+    headers: { 'X-Master-Key': JSONBIN_API_KEY }
+  });
+  if (!res.ok) throw new Error(`JSONBin read failed: ${res.status}`);
+  const json = await res.json();
+  return json.record.matches || []; // unwrap from {matches: []}
+}
+
+async function writeMatches(matches) {
+  const res = await fetch(JSONBIN_URL, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': JSONBIN_API_KEY
+    },
+    body: JSON.stringify({ matches }) // wrap in {matches: [...]}
+  });
+  if (!res.ok) throw new Error(`JSONBin write failed: ${res.status}`);
 }
 
 // ==========================================
 // LEADERBOARD ENGINE (ported from code.gs)
 // ==========================================
-let leaderboardCache = null;
-
-function computeLeaderboard() {
-  const players = readJSON(PLAYERS_FILE);
-  const matches = readJSON(MATCHES_FILE);
+async function computeLeaderboard() {
+  const players = readPlayers();
+  const matches = await readMatches();
 
   const winCounts = {};
   const playerLogs = {};
@@ -121,12 +139,7 @@ function computeLeaderboard() {
     };
   }).sort((a, b) => a.rank - b.rank);
 
-  leaderboardCache = leaderboardData;
   return leaderboardData;
-}
-
-function getLeaderboard() {
-  return leaderboardCache || computeLeaderboard();
 }
 
 // ==========================================
@@ -134,16 +147,16 @@ function getLeaderboard() {
 // ==========================================
 
 // GET  /api/leaderboard
-app.get('/api/leaderboard', (_req, res) => {
+app.get('/api/leaderboard', async (_req, res) => {
   try {
-    res.json(getLeaderboard());
+    res.json(await computeLeaderboard());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // POST /api/match — add a match record
-app.post('/api/match', (req, res) => {
+app.post('/api/match', async (req, res) => {
   const { date, matchName, winner, pin, absentees } = req.body;
 
   if (pin !== ADMIN_PIN) {
@@ -154,18 +167,17 @@ app.post('/api/match', (req, res) => {
   }
 
   try {
-    const matches = readJSON(MATCHES_FILE);
+    const matches = await readMatches();
     matches.push({ date, matchName, winner, absentees: absentees || '' });
-    writeJSON(MATCHES_FILE, matches);
-    leaderboardCache = null; // bust cache
-    return res.json({ success: true, message: 'Match logged!', data: computeLeaderboard() });
+    await writeMatches(matches);
+    return res.json({ success: true, message: 'Match logged!', data: await computeLeaderboard() });
   } catch (err) {
     return res.json({ success: false, message: 'Error: ' + err.message });
   }
 });
 
 // POST /api/undo — revert last match
-app.post('/api/undo', (req, res) => {
+app.post('/api/undo', async (req, res) => {
   const { pin } = req.body;
 
   if (pin !== ADMIN_PIN) {
@@ -173,14 +185,13 @@ app.post('/api/undo', (req, res) => {
   }
 
   try {
-    const matches = readJSON(MATCHES_FILE);
+    const matches = await readMatches();
     if (matches.length === 0) {
       return res.json({ success: false, message: 'No matches left to delete.' });
     }
     matches.pop();
-    writeJSON(MATCHES_FILE, matches);
-    leaderboardCache = null;
-    return res.json({ success: true, message: 'Last match reverted!', data: computeLeaderboard() });
+    await writeMatches(matches);
+    return res.json({ success: true, message: 'Last match reverted!', data: await computeLeaderboard() });
   } catch (err) {
     return res.json({ success: false, message: 'Error: ' + err.message });
   }
