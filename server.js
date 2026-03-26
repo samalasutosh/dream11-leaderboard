@@ -15,32 +15,43 @@ const ADMIN_PIN = process.env.ADMIN_PIN || '13579';
 
 const JSONBIN_BIN_ID  = process.env.JSONBIN_BIN_ID;
 const JSONBIN_API_KEY = process.env.JSONBIN_API_KEY;
-const JSONBIN_URL     = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
+const JSONBIN_URL     = JSONBIN_BIN_ID ? `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}` : null;
+const MATCHES_FILE    = path.join(DATA_DIR, 'matches.json');
+const USE_JSONBIN     = !!(JSONBIN_URL && JSONBIN_API_KEY);
 
 // ==========================================
-// HELPERS — players from local file, matches from JSONBin
+// HELPERS — players from local file, matches from JSONBin (or local fallback)
 // ==========================================
 function readPlayers() {
   return JSON.parse(fs.readFileSync(PLAYERS_FILE, 'utf-8'));
 }
 
 async function readMatches() {
+  if (!USE_JSONBIN) {
+    // Local fallback for development
+    return JSON.parse(fs.readFileSync(MATCHES_FILE, 'utf-8'));
+  }
   const res = await fetch(`${JSONBIN_URL}/latest`, {
     headers: { 'X-Master-Key': JSONBIN_API_KEY }
   });
   if (!res.ok) throw new Error(`JSONBin read failed: ${res.status}`);
   const json = await res.json();
-  return json.record.matches || []; // unwrap from {matches: []}
+  return json.record.matches || [];
 }
 
 async function writeMatches(matches) {
+  if (!USE_JSONBIN) {
+    // Local fallback for development
+    fs.writeFileSync(MATCHES_FILE, JSON.stringify(matches, null, 2), 'utf-8');
+    return;
+  }
   const res = await fetch(JSONBIN_URL, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
       'X-Master-Key': JSONBIN_API_KEY
     },
-    body: JSON.stringify({ matches }) // wrap in {matches: [...]}
+    body: JSON.stringify({ matches })
   });
   if (!res.ok) throw new Error(`JSONBin write failed: ${res.status}`);
 }
