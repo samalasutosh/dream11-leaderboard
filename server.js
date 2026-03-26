@@ -57,6 +57,7 @@ async function computeLeaderboard() {
   const rankHistory = {};
   const missStreaks = {};
   const totalFines = {};
+  const fineAlert = {}; // true ONLY when fine triggered on the latest match
 
   players.forEach(p => {
     winCounts[p] = 0;
@@ -64,6 +65,7 @@ async function computeLeaderboard() {
     rankHistory[p] = [];
     missStreaks[p] = 0;
     totalFines[p] = 0;
+    fineAlert[p] = false;
   });
 
   function getRanksAtCurrentState(currentWins) {
@@ -98,11 +100,13 @@ async function computeLeaderboard() {
 
     // 2. Process Absences & Fines
     players.forEach(p => {
+      fineAlert[p] = false; // reset each match — only the last match matters
       if (absenteesList.includes(p)) {
         missStreaks[p]++;
         if (missStreaks[p] >= 3) {
           totalFines[p]++;
-          missStreaks[p] = 0;
+          fineAlert[p] = true; // fine just triggered on THIS match
+          missStreaks[p] = 0;  // reset streak after fine
         }
       } else {
         missStreaks[p] = 0;
@@ -136,6 +140,7 @@ async function computeLeaderboard() {
       rankHistory: rHistory,
       missStreak: missStreaks[curr],
       fines: totalFines[curr],
+      fineAlert: fineAlert[curr], // true only when 3rd miss was the latest match
     };
   }).sort((a, b) => a.rank - b.rank);
 
